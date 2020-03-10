@@ -1,0 +1,100 @@
+
+### prepare libraries and useful data
+```{r}
+library("jiebaR")
+library("plyr")
+library(twitteR)
+library(tm)
+library("qdapDictionaries")
+library(wordcloud2)
+library(ggplot2)
+data(adverb)
+data(labMT)
+data(negative.words)
+data(negation.words)
+data(positive.words)
+cutter = worker()
+```
+
+
+### clean data
+```{r}
+twitter<- read.csv("C:/Users/Yiyi Xie/Desktop/twitterMASC.csv",header= TRUE)
+#drop column with no data
+tw_clean <-twitter[, colSums(is.na(twitter)) != nrow(twitter)]
+
+```
+
+
+### generate word cloud using meaningful words
+```{r}
+cutter = worker()
+segWords = segment(as.character(tw_clean$text),cutter)
+segWords = gsub("^*[a-z]$","",segWords)
+segWords = gsub("\\d","",segWords)
+segWords = gsub("http","",segWords)
+segWords = gsub("co","",segWords)
+lists.of.words = strsplit(segWords,split = "\\s")
+vector.of.words = unlist(lists.of.words)
+tableWord <- plyr::count(vector.of.words)
+sorted= tableWord[order(tableWord$freq,decreasing = TRUE),]
+choose = c(negative.words, positive.words)
+differentWords = setdiff(sorted$x, choose)
+sameWords = setdiff(sorted$x, differentWords)
+# find the meaningful english words
+words = sorted[which(sorted$x %in% sameWords),]
+#generate the wordcloud
+wordcloud2(words)
+
+```
+
+
+
+#content <- Corpus(VectorSource(tw_clean$text))
+#dtm <- DocumentTermMatrix(content,control = list(weighting =function(x),weightTfIdf(x, normalize = FALSE),stopwords = TRUE))
+```{r}
+# extract device info
+cutter = worker()
+segWords = segment(as.character(tw_clean$source),cutter)
+segWords = gsub("^*[a-z]$","",segWords)
+segWords = gsub("\\d","",segWords)
+lists.of.words = strsplit(segWords,split = "\\s")
+vector.of.words = unlist(lists.of.words)
+tableWord <- plyr::count(vector.of.words)
+devices= tableWord[order(tableWord$freq,decreasing = TRUE),]
+deviceName = c("iPhone","Web","Android","iPad","TweetDeck","Client")
+user = devices[which(devices$x %in% deviceName),]
+                         
+                         
+#generate bar plot, can't figure out why can't get colors
+ggplot(user,aes(x,freq))+geom_bar(stat = "identity")+scale_fill_brewer(palette = "Blues")
+```
+
+### the result may be not useful, three words is strong related with favorite_count
+```{r}
+library("stringr")
+word <- sameWords
+# create a zero matrix for these selected new words
+new_X <- matrix(0, nrow(tw_clean), length(word))
+# check new words name 
+colnames(new_X) <- word
+# if the word shows in the text, change the value from 0 to 1
+for (i in 1:length(word)){
+  new_X[,i] <- str_count(tw_clean$text, regex(word[i], ignore_case=T)) # ignore the upper/lower case in the text
+}
+tw_clean$favorite_count[is.na( tw_clean$favorite_count)] <- 0
+data = cbind(tw_clean$favorite_count,new_X)
+data = as.data.frame(data)
+benchmark <- lm(V1~.,data)
+summary(benchmark)
+par(mfrow=c(2,2))
+# plot the regression model
+# Check the influential and outlier points
+#plot(benchmark,which = 2) #QQ plot
+#plot(benchmark,which = 3) # scale-locations
+#plot(benchmark,which = 4) #cook's dostance
+#plot(benchmark,which = 5) # residuals vs leverage
+```
+
+                         
+                         
